@@ -69,7 +69,7 @@ class OBJECT_PT_SkeletonTool(bpy.types.Panel):
         
         box = layout.box()
         box.label(text="Misc") 
-        #box.operator("tag.create")
+        box.operator("tag.create")
         box.operator("remove.parent")
         box.operator("hierarchy.clean")
         box.operator("empty_vertex_groups.delete")
@@ -1043,7 +1043,10 @@ class OBJECT_OT_SetGhoul2Properties(bpy.types.Operator):
         for object in bpy.data.objects:       
             if object.type != "MESH":
                 continue
-                
+            object.select_set(True)
+            bpy.context.view_layer.objects.active = object
+            bpy.ops.object.add_g2_properties()        
+            object.select_set(False)
             OBJECT_OT_SetGhoul2Properties.setProperties(object)
     
         return {'FINISHED'}
@@ -1055,7 +1058,7 @@ class OBJECT_OT_SetGhoul2Properties(bpy.types.Operator):
         confirm_text="DO IT!", icon='WARNING', text_ctxt='', translate=True)
     # Setting automatically object name as g_prop, off for caps and tag for *tags
     def setProperties(object): 
-                
+        
         if "_cap_" in object.name:
             object.g2_prop_off = True
             object.g2_prop_tag = False
@@ -1063,7 +1066,8 @@ class OBJECT_OT_SetGhoul2Properties(bpy.types.Operator):
         if "*" in object.name:
             object.g2_prop_tag = True
             object.g2_prop_off = False
-            
+        
+        
         object.g2_prop_name = object.name.replace("_" + getLOD(object), "")
         object.g2_prop_shader = ""
             
