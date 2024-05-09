@@ -2,9 +2,10 @@ import bpy
 import jediacademy # This can get very fancy names, so it would be interesting to make a "try" on wonko functions
 import math
 import random
+import addon_utils
 
 # We will make a list of bones which will primarily assign objects
-assignbones = ["pelvis", "thoracic", "cervical", "face", "rradius", "rhand", "lradius", "lhand", "rtibia", "ltibia", "rtalus", "ltalus", "lower_lumbar", "rhumerus", "lhumerus"]
+assignbones = ["pelvis", "thoracic", "cervical", "face", "rradius", "rhand", "lradius", "lhand", "rfemurX", "lfemurX", "rtalus", "ltalus", "lower_lumbar", "rhumerus", "lhumerus"]
 assignnames = ["hips","torso","torso_upper","head","r_arm","r_hand","l_arm","l_hand","r_leg","l_leg","r_leg_foot","l_leg_foot","torso_lower","r_arm_shield","l_arm_shield"]
 # Had to rename _cap_ due to conflicting with the main addon
 
@@ -81,6 +82,10 @@ class OBJECT_PT_SkeletonTool(bpy.types.Panel):
         box.prop(settings, "meshes")
         box.prop(settings, "caps")
         box.prop(settings, "tags")
+        
+        box = layout.box()
+        box.label(text="AutoPort") 
+        box.operator("g2.jk2port")
         
 
 
@@ -308,7 +313,6 @@ class OBJECT_OT_CreateTags(bpy.types.Operator):
                 obj.vertex_groups.new(name=groups[obj.name]) # Adds a vertex group
                 obj.vertex_groups.active.add([0, 1, 2], 1.0, 'ADD') # Assign weight
                 obj.g2_prop_tag = True # Set g2_prop_tag to True
-                print(obj.name + " created.")
 
 
 ################################################################################################
@@ -511,9 +515,9 @@ def boneMeshDistance():
             if "_0" not in obj.name and obj.visible_get() is True and obj.type == "MESH" and "*" not in obj.name and "cap" not in obj.name and "stupidtriangle" not in obj.name:
                 matrix_final_object = obj.matrix_world.translation
                 distance = math.dist(matrix_final_bone, matrix_final_object) # We calculate world space object location and their distance to the world space location of bone
-                if distance < 1:
-                    volume = calculateBoundingBoxVolume(obj)/10
-                    boneobjdistance.append([bone.name,obj.name,distance-volume]) # We make a list with all bones included
+                
+                if distance < 15:
+                    boneobjdistance.append([bone.name,obj.name,distance]) # We make a list with all bones included
     return boneobjdistance
 
 def namingConventions():
@@ -614,7 +618,6 @@ class OBJECT_OT_BodyParent(bpy.types.Operator):
         strippedObj = stripLOD(object)    
         
         for item in parts.keys():
-            print(item)
             if strippedObj == item:
                 return f"{parts.get(strippedObj)}_{getLOD(object)}"
             elif item in strippedObj:
@@ -1074,6 +1077,79 @@ class OBJECT_OT_SetGhoul2Properties(bpy.types.Operator):
         # Let people manually set shaders, if needed
 
 
+
+class OBJECT_OT_Jk2Port(bpy.types.Operator):
+    bl_idname = "g2.jk2port"
+    bl_label = "Port from JK3 to JK2"
+    
+    def execute(self, context):         
+        # Select everything and unparent keeping transformation
+        bpy.ops.object.select_all(action='SELECT')
+        bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
+        bpy.ops.object.select_all(action='DESELECT')
+        
+        # Select meshes and cap and remove the rest
+        for obj in bpy.data.objects:
+            if "skeleton_root" in obj.name or "model_root" in obj.name or "stupidtriangle" in obj.name or "scene_root" in obj.name:
+                continue
+            if "*" not in obj.name and "cap" not in obj.name:
+                obj.select_set(True)
+            if "cap" in obj.name and "*" not in obj.name:
+                obj.select_set(True)
+        bpy.ops.object.select_all(action='INVERT')
+        bpy.ops.object.delete(use_global=False, confirm=False)
+        bpy.ops.outliner.orphans_purge()
+
+        # Importing the new skeleton
+        with bpy.data.libraries.load(filepath="D://Program Files//Blender4.0//build_windows_x64_vc17_Release//bin//Release//4.2//scripts//addons//skeleton_tool//Tags100100.blend", link=False) as (data_from, data_to):
+            data_to.objects = data_from.objects
+
+        scene = bpy.context.scene
+
+        for obj in data_to.objects:
+            if obj is None:
+                continue
+            scene.collection.objects.link(obj)
+            
+        
+        # Rename all objects
+        
+        for obj in bpy.data.objects:
+            if "skeleton_root" in obj.name or "model_root" in obj.name or "stupidtriangle" in obj.name or "scene_root" in obj.name:
+                continue
+            if "*" not in obj.name and "cap" not in obj.name:
+                obj.name = "body"
+                
+        # Autorename everything
+        
+        autoRenamer()
+        
+        # Parent everything
+        
+        bpy.ops.body.parent()
+        bpy.ops.cap.parent()
+        bpy.ops.tag.parent()
+        
+        # We need to assign properly the armature modifier
+        
+        for obj in bpy.data.objects:
+            if "skeleton_root" in obj.name or "model_root" in obj.name or "stupidtriangle" in obj.name or "scene_root" in obj.name:
+                continue
+            if "*" not in obj.name and "cap" not in obj.name:
+                obj.modifiers["armature"].object = bpy.data.objects["skeleton_root"]
+            if "cap" in obj.name and "*" not in obj.name:
+                obj.modifiers["armature"].object = bpy.data.objects["skeleton_root"]
+            
+    
+        return {'FINISHED'}
+    
+    def invoke(self, context, event):
+        return context.window_manager.invoke_confirm(self, event, 
+        title='CAUTION', 
+        message="Attempt to do an automatic port", 
+        confirm_text="Sure!", icon='WARNING', text_ctxt='', translate=True)
+
+
 class OBJECT_OT_SelectOnlyMeshes(bpy.types.Operator):
     bl_idname = "g2.select"
     bl_label = "Model part select"
@@ -1148,7 +1224,8 @@ classes = [
     OBJECT_OT_EmptyVertexGroupDelete,
     OBJECT_OT_CreateTags,
     OBJECT_OT_AutoMaterialCleaner,
-    OBJECT_OT_SelectOnlyMeshes
+    OBJECT_OT_SelectOnlyMeshes,
+    OBJECT_OT_Jk2Port
 ]
 
 if __name__ == "__main__":
