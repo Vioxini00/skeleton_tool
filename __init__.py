@@ -86,6 +86,7 @@ class OBJECT_PT_SkeletonTool(bpy.types.Panel):
         box = layout.box()
         box.label(text="AutoPort") 
         box.operator("g2.jk2port")
+        box.prop(settings, "rename")
         
 
 
@@ -116,6 +117,7 @@ class AddonProperties(bpy.types.PropertyGroup):
     meshes : bpy.props.BoolProperty(name="Meshes",default=False)
     caps : bpy.props.BoolProperty(name="Caps",default=False)
     tags : bpy.props.BoolProperty(name="Tags",default=False)
+    rename : bpy.props.BoolProperty(name="Rename parts",default=False)
     
 
 def showMessage(message = "defaultMessage", title = "defaultTitle", icon = 'INFO'):
@@ -1083,6 +1085,8 @@ class OBJECT_OT_Jk2Port(bpy.types.Operator):
     bl_label = "Port from JK3 to JK2"
     
     def execute(self, context):         
+        settings = bpy.context.scene.settings
+        
         # Select everything and unparent keeping transformation
         bpy.ops.object.select_all(action='SELECT')
         bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
@@ -1112,17 +1116,19 @@ class OBJECT_OT_Jk2Port(bpy.types.Operator):
             scene.collection.objects.link(obj)
             
         
-        # Rename all objects
+        if settings.rename:
         
-        for obj in bpy.data.objects:
-            if "skeleton_root" in obj.name or "model_root" in obj.name or "stupidtriangle" in obj.name or "scene_root" in obj.name:
-                continue
-            if "*" not in obj.name and "cap" not in obj.name:
-                obj.name = "body"
-                
-        # Autorename everything
-        
-        autoRenamer()
+            # Rename all objects
+            
+            for obj in bpy.data.objects:
+                if "skeleton_root" in obj.name or "model_root" in obj.name or "stupidtriangle" in obj.name or "scene_root" in obj.name:
+                    continue
+                if "*" not in obj.name and "cap" not in obj.name:
+                    obj.name = "body"
+                    
+            # Autorename everything
+            
+            autoRenamer()
         
         # Parent everything
         
